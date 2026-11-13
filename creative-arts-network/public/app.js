@@ -9,10 +9,68 @@ function focusNode(id,remember=true){if(!state.nodes.some(n=>n.id===id))return;i
 function selectCategory(kind){$('category').value=kind;$('search').value='';listChoices();}
 function listChoices(){const q=$('search').value.trim().toLowerCase(),kind=$('category').value;const arr=state.nodes.filter(n=>n.kind===kind&&(n.label.toLowerCase().includes(q)||n.id.toLowerCase().includes(q))).sort((a,b)=>a.label.localeCompare(b.label));const box=$('choice');box.replaceChildren();for(const n of arr){const option=document.createElement('option');option.value=n.id;option.textContent=n.label;box.appendChild(option);}box.size=Math.min(10,Math.max(3,arr.length));}
 function connections(id){return state.edges.filter(e=>e.source===id||e.target===id).map(e=>e.source===id?e.target:e.source);}
-function renderGraph(){const svg=$('graph');svg.replaceChildren();const center=state.nodes.find(n=>n.id===state.focus);if(!center)return;const one=[...new Set(connections(center.id))].map(id=>state.nodes.find(n=>n.id===id)).filter(Boolean);let second=[];if(state.second){const seen=new Set([center.id,...one.map(n=>n.id)]);for(const n of one)for(const id of connections(n.id))if(!seen.has(id)){seen.add(id);second.push(state.nodes.find(x=>x.id===id));}second=second.filter(Boolean).slice(0,22);}
-const count=one.length;const gap=Math.max(150,Math.min(230,count*12));const cx=400,cy=290;const pos=new Map([[center.id,{x:cx,y:cy}]]);one.forEach((n,i)=>{const angle=-Math.PI/2+2*Math.PI*i/Math.max(1,count);pos.set(n.id,{x:cx+gap*Math.cos(angle),y:cy+Math.min(gap,205)*Math.sin(angle)})});second.forEach((n,i)=>{const angle=-Math.PI/2+2*Math.PI*i/Math.max(1,second.length);pos.set(n.id,{x:cx+345*Math.cos(angle),y:cy+260*Math.sin(angle)})});const drawable=[center,...one,...second];for(const e of state.edges){const a=pos.get(e.source),b=pos.get(e.target);if(!a||!b)continue;svg.appendChild(el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,class:'edge'+(second.some(n=>n.id===e.source||n.id===e.target)?' secondary':'')}));}
-for(const n of [...second,...one,center]){const p=pos.get(n.id),central=n.id===center.id,secondary=second.includes(n);const radius=central?61:(secondary?21:29);const g=el('g',{class:'graphnode'+(central?' central':''),tabindex:'0',role:'button','aria-label':`${n.label} · refocus network`});g.appendChild(el('circle',{cx:p.x,cy:p.y,r:radius,fill:kindColors[n.kind]||'#758c90',opacity:secondary?.60:1}));const label=nodeName(n);const short=label.length>(central?18:12)?label.slice(0,central?16:10)+'…':label;g.appendChild(el('text',{x:p.x,y:p.y+(central?1:4),'text-anchor':'middle'},short));if(central)g.appendChild(el('text',{x:p.x,y:p.y+19,'text-anchor':'middle',class:'desc'},n.kind));g.addEventListener('click',()=>focusNode(n.id));g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();focusNode(n.id)}});svg.appendChild(g)}
-$('graphTitle').textContent=center.label;$('count').textContent=`${one.length} direct connections`;$('graphnote').textContent=state.second?'Dashed lines show selected second-degree relationships.':'Click a connected node to recenter the constellation.';}
+function renderGraph(){
+  const svg=$('graph');
+  svg.replaceChildren();
+  const center=state.nodes.find(n=>n.id===state.focus);
+  if(!center)return;
+  const one=[...new Set(connections(center.id))].map(id=>state.nodes.find(n=>n.id===id)).filter(Boolean);
+  let second=[];
+  if(state.second){
+    const seen=new Set([center.id,...one.map(n=>n.id)]);
+    for(const n of one)for(const id of connections(n.id))if(!seen.has(id)){
+      seen.add(id);
+      second.push(state.nodes.find(x=>x.id===id));
+    }
+    second=second.filter(Boolean).slice(0,22);
+  }
+  const cx=400,cy=275;
+  const count=one.length;
+  const spread=Math.min(205,Math.max(135,count*19));
+  const pos=new Map([[center.id,{x:cx,y:cy}]]);
+  one.forEach((n,i)=>{
+    const angle=-Math.PI/2+2*Math.PI*i/Math.max(1,count);
+    pos.set(n.id,{x:cx+spread*Math.cos(angle),y:cy+Math.min(spread,170)*Math.sin(angle)});
+  });
+  second.forEach((n,i)=>{
+    const angle=-Math.PI/2+2*Math.PI*i/Math.max(1,second.length);
+    pos.set(n.id,{x:cx+345*Math.cos(angle),y:cy+245*Math.sin(angle)});
+  });
+  // Primary edges are visually distinct; second-degree relationships stay optional.
+  for(const e of state.edges){
+    const a=pos.get(e.source),b=pos.get(e.target);
+    if(!a||!b)continue;
+    const isSecond=second.some(n=>n.id===e.source||n.id===e.target);
+    svg.appendChild(el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,class:'edge'+(isSecond?' secondary':'')}));
+  }
+  // Coloured markers encode category; labels are black text on opaque white cards.
+  // Avoid putting long category names in narrow coloured circles.
+  for(const n of [...second,...one,center]){
+    const p=pos.get(n.id),central=n.id===center.id,secondary=second.includes(n);
+    const radius=central?45:(secondary?13:21);
+    const g=el('g',{class:'graphnode'+(central?' central':'')+(secondary?' distant':''),tabindex:'0',role:'button','aria-label':`${n.label} · refocus network`});
+    g.appendChild(el('circle',{cx:p.x,cy:p.y,r:radius,fill:kindColors[n.kind]||'#758c90'}));
+    const label=nodeName(n);
+    const limit=central?20:(secondary?12:19);
+    const short=label.length>limit?label.slice(0,limit-1)+'…':label;
+    const fontSize=central?16:(secondary?10:12);
+    const pillW=Math.min(central?210:(secondary?124:170),Math.max(46,short.length*fontSize*.58+18));
+    const pillH=central?30:(secondary?21:25);
+    const pillY=p.y+radius+5;
+    const pillX=p.x-pillW/2;
+    const card=el('rect',{x:pillX,y:pillY,width:pillW,height:pillH,rx:7,class:'nodelabel-card'});
+    g.appendChild(card);
+    g.appendChild(el('text',{x:p.x,y:pillY+pillH/2+fontSize*.35,'text-anchor':'middle',class:'nodelabel','font-size':fontSize},short));
+    // A real SVG title provides the full label when a short on-graph label is used.
+    g.appendChild(el('title',{},n.label));
+    g.addEventListener('click',()=>focusNode(n.id));
+    g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();focusNode(n.id)}});
+    svg.appendChild(g);
+  }
+  $('graphTitle').textContent=center.label;
+  $('count').textContent=`${one.length} direct connections`;
+  $('graphnote').textContent=state.second?'Solid lines: direct relationships. Dashed lines: second-degree relationships.':'Solid lines show direct relationships. Select a node to recenter.';
+}
 function textRow(a,b){const row=document.createElement('div');row.className='detailrow';const l=document.createElement('span'),r=document.createElement('span');l.textContent=a;r.textContent=b;row.append(l,r);return row;}
 function renderDetail(){const n=state.nodes.find(n=>n.id===state.focus);if(!n)return;$('detailTitle').textContent=n.kind==='Unit'?nodeDescription(n):n.label;$('detailKind').textContent=n.kind==='Unit'?`${nodeName(n)} · Unit`:n.kind;const body=$('detailBody');body.replaceChildren();const sessions=state.details[nodeName(n)]||[];if(n.kind==='Unit'&&sessions.length){for(const s of sessions){const block=document.createElement('div');block.className='detailsection';const strong=document.createElement('strong');strong.textContent=s.semester||'Unscheduled';block.appendChild(strong);for(const [label,value]of [['Day',s.day],['Time',s.start&&s.end?`${s.start}–${s.end}`:''],['Staff',s.staff],['Unit type',s.type],['Source',s.source]])if(value)block.appendChild(textRow(label,value));body.appendChild(block)}}else{body.appendChild(textRow('Directly connected nodes',String(connections(n.id).length)));const desc=document.createElement('p');desc.textContent='Select any connected node to follow this relationship.';body.appendChild(desc)}
 const h=$('history');h.replaceChildren();for(const id of state.journey.slice(-7)){const node=state.nodes.find(n=>n.id===id);if(!node)continue;const b=document.createElement('button');b.textContent=nodeName(node);b.addEventListener('click',()=>focusNode(id));h.appendChild(b)};
