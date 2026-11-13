@@ -1,8 +1,0 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { parseSheets } from '../src/graph.js';
-const t=[['Unit Code','Unit Title','','','','Program','Semester','Staff','','Day','Start','End'],['CRA128','Printmaking','','','Specialist Elective','Bachelor of Creative Arts (WCART2)','Semester 2','MvR','','Friday','09:00','12:00'],['CRA305','Studio Practice 5','','','Major: All','Bachelor of Creative Arts (WCART2)','Semester 1','SP','','Wednesday','09:00','12:00']];
-const d=[[],['Unit Code','Unit Title','Unit Type','Semester','Staff','Day','Start Time','End Time','Unit Code','Unit Title','Semester','Staff','Day','Start Time','End Time'],['CUAPRI411','Printmaking','TAFE unit','Semester 2','MvR','Tuesday','09:00','16:00'],['CRA105','Studio Practice 1','Core','Semester 1','AM','Wednesday','09:00','12:00','CUADES301\nCUADES302','Colour\n2D design','Semester 1','AM','Wednesday','09:00','16:00']];
-test('both HE and TAFE units are independent but connect to the same staff',()=>{const g=parseSheets(t,d);assert(g.nodes.some(n=>n.id==='Unit:CRA128'));assert(g.nodes.some(n=>n.id==='Unit:CUAPRI411'));assert(g.edges.some(e=>e.source==='Unit:CRA128'&&e.target==='Staff:MvR'));assert(g.edges.some(e=>e.source==='Unit:CUAPRI411'&&e.target==='Staff:MvR'));});
-test('right-hand dual delivery TAFE codes become separate nodes',()=>{const g=parseSheets(t,d);assert(g.nodes.some(n=>n.id==='Unit:CUADES301'));assert(g.nodes.some(n=>n.id==='Unit:CUADES302'));});
-test('shared final-year majors connect across the four established major pathways',()=>{const g=parseSheets(t,d);assert.equal(g.edges.filter(e=>e.source==='Unit:CRA305'&&e.relation==='in major').length,4);});

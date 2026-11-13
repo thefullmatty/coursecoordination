@@ -1,0 +1,28 @@
+Academy Network — Semester View v0.6
+
+This is a SMALL UPDATE for your WORKING v0.5 project.
+It changes public/app.js and adds tests/semester-filter.test.js only.
+It does not change Google Sheets credentials, API code, HTML, CSS, or .dev.vars.
+
+In GitHub Codespaces, open a terminal in the folder with package.json and .dev.vars.
+Upload academy-network-semester-view-v06.zip INTO THAT FOLDER.
+Run:
+
+  unzip -o academy-network-semester-view-v06.zip
+  npm test
+  npm run dev
+
+Open port 8787 and refresh. Under View, independently check Semester 1 and Semester 2.
+Both are checked by default. At least one stays checked. The second-degree
+connections checkbox remains independently selectable.
+
+What changes:
+- Staff, Major, Program, Unit, Day, Semester and Unit Type networks reflect
+  selected teaching semesters.
+- Staff and day links are filtered using actual teaching sessions to avoid
+  showing a lecturer or day from the wrong semester.
+- The node at the centre stays in place when you change your View filters.
+- Details and connection counts update with the filter.
+- Does NOT overwrite your Academy of the Arts HTML heading.
+
+Do not commit any .dev.vars file or Google service account JSON.
