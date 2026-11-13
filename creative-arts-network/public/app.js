@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-const svgNS='http://www.w3.org/2000';
+const svgNS='http://www.w3.org/2000/svg';
 let state={nodes:[],edges:[],details:{},focus:null,journey:[],second:false};
 const kindColors={'Unit':'#366f8a','Staff':'#a47b43','Major':'#846c97','Semester':'#477d77','Day':'#477d77','Unit Type':'#8e8d7c'};
 const nodeName=n=>n.kind==='Unit'?n.label.split(' · ')[0]:n.label;
