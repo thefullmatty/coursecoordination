@@ -1,79 +1,163 @@
-const $=id=>document.getElementById(id);
-const svgNS='http://www.w3.org/2000/svg';
-let state={nodes:[],edges:[],details:{},focus:null,journey:[],second:false};
-const kindColors={'Unit':'#366f8a','Staff':'#a47b43','Major':'#846c97','Semester':'#477d77','Day':'#477d77','Unit Type':'#8e8d7c'};
-const nodeName=n=>n.kind==='Unit'?n.label.split(' · ')[0]:n.label;
-const nodeDescription=n=>n.kind==='Unit'?n.label.split(' · ').slice(1).join(' · '):n.kind;
-function el(name,attrs={},text=''){const e=document.createElementNS(svgNS,name);for(const [key,v]of Object.entries(attrs))e.setAttribute(key,String(v));if(text)e.textContent=text;return e;}
-function focusNode(id,remember=true){if(!state.nodes.some(n=>n.id===id))return;if(remember&&state.focus!==id)state.journey.push(id);state.focus=id;renderGraph();renderDetail();$('back').disabled=state.journey.length<2;}
-function selectCategory(kind){$('category').value=kind;$('search').value='';listChoices();}
-function listChoices(){const q=$('search').value.trim().toLowerCase(),kind=$('category').value;const arr=state.nodes.filter(n=>n.kind===kind&&(n.label.toLowerCase().includes(q)||n.id.toLowerCase().includes(q))).sort((a,b)=>a.label.localeCompare(b.label));const box=$('choice');box.replaceChildren();for(const n of arr){const option=document.createElement('option');option.value=n.id;option.textContent=n.label;box.appendChild(option);}box.size=Math.min(10,Math.max(3,arr.length));}
-function connections(id){return state.edges.filter(e=>e.source===id||e.target===id).map(e=>e.source===id?e.target:e.source);}
-function renderGraph(){
-  const svg=$('graph');
+
+function renderGraph() {
+  const svg = $('graph');
   svg.replaceChildren();
-  const center=state.nodes.find(n=>n.id===state.focus);
-  if(!center)return;
-  const one=[...new Set(connections(center.id))].map(id=>state.nodes.find(n=>n.id===id)).filter(Boolean);
-  let second=[];
-  if(state.second){
-    const seen=new Set([center.id,...one.map(n=>n.id)]);
-    for(const n of one)for(const id of connections(n.id))if(!seen.has(id)){
-      seen.add(id);
-      second.push(state.nodes.find(x=>x.id===id));
+  svg.setAttribute('viewBox', '0 0 1100 760');
+
+  const center = state.nodes.find(n => n.id === state.focus);
+  if (!center) return;
+
+  const one = [...new Set(connections(center.id))]
+    .map(id => state.nodes.find(n => n.id === id))
+    .filter(Boolean);
+
+  let second = [];
+
+  if (state.second) {
+    const seen = new Set([center.id, ...one.map(n => n.id)]);
+
+    for (const n of one) {
+      for (const id of connections(n.id)) {
+        if (!seen.has(id)) {
+          seen.add(id);
+          const match = state.nodes.find(x => x.id === id);
+          if (match) second.push(match);
+        }
+      }
     }
-    second=second.filter(Boolean).slice(0,22);
+
+    second = second.slice(0, 22);
   }
-  const cx=400,cy=275;
-  const count=one.length;
-  const spread=Math.min(205,Math.max(135,count*19));
-  const pos=new Map([[center.id,{x:cx,y:cy}]]);
-  one.forEach((n,i)=>{
-    const angle=-Math.PI/2+2*Math.PI*i/Math.max(1,count);
-    pos.set(n.id,{x:cx+spread*Math.cos(angle),y:cy+Math.min(spread,170)*Math.sin(angle)});
-  });
-  second.forEach((n,i)=>{
-    const angle=-Math.PI/2+2*Math.PI*i/Math.max(1,second.length);
-    pos.set(n.id,{x:cx+345*Math.cos(angle),y:cy+245*Math.sin(angle)});
-  });
-  // Primary edges are visually distinct; second-degree relationships stay optional.
-  for(const e of state.edges){
-    const a=pos.get(e.source),b=pos.get(e.target);
-    if(!a||!b)continue;
-    const isSecond=second.some(n=>n.id===e.source||n.id===e.target);
-    svg.appendChild(el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,class:'edge'+(isSecond?' secondary':'')}));
+
+  const colours = {
+    Unit: ['#E5F0F5', '#366F8A'],
+    Staff: ['#F7EEDF', '#A47B43'],
+    Major: ['#F0EAF5', '#846C97'],
+    Semester: ['#E5F2EE', '#477D77'],
+    Day: ['#E5F2EE', '#477D77'],
+    'Unit Type': ['#F0EFE8', '#8E8D7C']
+  };
+
+  const positions = new Map();
+  const cx = 550;
+  const cy = 375;
+
+  positions.set(center.id, { x: cx, y: cy });
+
+  function positionRing(nodes, rx, ry) {
+    nodes.forEach((n, i) => {
+      const angle = -Math.PI / 2 +
+        (2 * Math.PI * i / nodes.length);
+
+      positions.set(n.id, {
+        x: cx + rx * Math.cos(angle),
+        y: cy + ry * Math.sin(angle)
+      });
+    });
   }
-  // Coloured markers encode category; labels are black text on opaque white cards.
-  // Avoid putting long category names in narrow coloured circles.
-  for(const n of [...second,...one,center]){
-    const p=pos.get(n.id),central=n.id===center.id,secondary=second.includes(n);
-    const radius=central?45:(secondary?13:21);
-    const g=el('g',{class:'graphnode'+(central?' central':'')+(secondary?' distant':''),tabindex:'0',role:'button','aria-label':`${n.label} · refocus network`});
-    g.appendChild(el('circle',{cx:p.x,cy:p.y,r:radius,fill:kindColors[n.kind]||'#758c90'}));
-    const label=nodeName(n);
-    const limit=central?20:(secondary?12:19);
-    const short=label.length>limit?label.slice(0,limit-1)+'…':label;
-    const fontSize=central?16:(secondary?10:12);
-    const pillW=Math.min(central?210:(secondary?124:170),Math.max(46,short.length*fontSize*.58+18));
-    const pillH=central?30:(secondary?21:25);
-    const pillY=p.y+radius+5;
-    const pillX=p.x-pillW/2;
-    const card=el('rect',{x:pillX,y:pillY,width:pillW,height:pillH,rx:7,class:'nodelabel-card'});
-    g.appendChild(card);
-    g.appendChild(el('text',{x:p.x,y:pillY+pillH/2+fontSize*.35,'text-anchor':'middle',class:'nodelabel','font-size':fontSize},short));
-    // A real SVG title provides the full label when a short on-graph label is used.
-    g.appendChild(el('title',{},n.label));
-    g.addEventListener('click',()=>focusNode(n.id));
-    g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();focusNode(n.id)}});
+
+  positionRing(one, 310, 225);
+  positionRing(second, 485, 345);
+
+  // Draw connections behind the labels.
+  for (const e of state.edges) {
+    const a = positions.get(e.source);
+    const b = positions.get(e.target);
+
+    if (!a || !b) continue;
+
+    const isSecond = second.some(n =>
+      n.id === e.source || n.id === e.target
+    );
+
+    svg.appendChild(el('line', {
+      x1: a.x,
+      y1: a.y,
+      x2: b.x,
+      y2: b.y,
+      stroke: isSecond ? '#BAC9CE' : '#65818B',
+      'stroke-width': isSecond ? 1.2 : 2.2,
+      'stroke-dasharray': isSecond ? '4 5' : 'none',
+      opacity: isSecond ? 0.4 : 0.85
+    }));
+  }
+
+  // Every node is now a bordered label.
+  for (const n of [...second, ...one, center]) {
+    const p = positions.get(n.id);
+    const central = n.id === center.id;
+    const secondary = second.includes(n);
+
+    const label = nodeName(n);
+    const colour = colours[n.kind] || ['#FFFFFF', '#879BA3'];
+
+    const fontSize = central ? 17 : secondary ? 11 : 13;
+    const maxWidth = central ? 235 : secondary ? 125 : 155;
+    const width = Math.min(
+      maxWidth,
+      Math.max(65, label.length * fontSize * 0.59 + 24)
+    );
+
+    const height = central ? 54 : secondary ? 29 : 35;
+    const x = p.x - width / 2;
+    const y = p.y - height / 2;
+
+    const g = el('g', {
+      class: 'graphnode' + (central ? ' central' : ''),
+      tabindex: '0',
+      role: 'button',
+      'aria-label': `${n.label} - select node`
+    });
+
+    const rect = el('rect', {
+      x, y,
+      width,
+      height,
+      rx: 8,
+      fill: colour[0],
+      stroke: colour[1],
+      'stroke-width': central ? 2.5 : 1.5
+    });
+
+    g.appendChild(rect);
+
+    const maxChars = Math.floor(
+      (width - 18) / (fontSize * 0.57)
+    );
+
+    const displayLabel = label.length > maxChars
+      ? label.slice(0, Math.max(1, maxChars - 1)) + '…'
+      : label;
+
+    const text = el('text', {
+      x: p.x,
+      y: p.y + fontSize * 0.35,
+      'text-anchor': 'middle',
+      'font-size': fontSize,
+      'font-weight': central ? 750 : 650,
+      fill: '#213340',
+      'pointer-events': 'none'
+    }, displayLabel);
+
+    g.appendChild(text);
+    g.appendChild(el('title', {}, n.label));
+
+    g.addEventListener('click', () => focusNode(n.id));
+
+    g.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        focusNode(n.id);
+      }
+    });
+
     svg.appendChild(g);
   }
-  $('graphTitle').textContent=center.label;
-  $('count').textContent=`${one.length} direct connections`;
-  $('graphnote').textContent=state.second?'Solid lines: direct relationships. Dashed lines: second-degree relationships.':'Solid lines show direct relationships. Select a node to recenter.';
+
+  $('graphTitle').textContent = center.label;
+  $('count').textContent = `${one.length} direct connections`;
+
+  $('graphnote').textContent = state.second
+    ? 'Solid lines: direct relationships. Dashed lines: second-degree relationships.'
+    : 'Click any connected label to explore its relationships.';
 }
-function textRow(a,b){const row=document.createElement('div');row.className='detailrow';const l=document.createElement('span'),r=document.createElement('span');l.textContent=a;r.textContent=b;row.append(l,r);return row;}
-function renderDetail(){const n=state.nodes.find(n=>n.id===state.focus);if(!n)return;$('detailTitle').textContent=n.kind==='Unit'?nodeDescription(n):n.label;$('detailKind').textContent=n.kind==='Unit'?`${nodeName(n)} · Unit`:n.kind;const body=$('detailBody');body.replaceChildren();const sessions=state.details[nodeName(n)]||[];if(n.kind==='Unit'&&sessions.length){for(const s of sessions){const block=document.createElement('div');block.className='detailsection';const strong=document.createElement('strong');strong.textContent=s.semester||'Unscheduled';block.appendChild(strong);for(const [label,value]of [['Day',s.day],['Time',s.start&&s.end?`${s.start}–${s.end}`:''],['Staff',s.staff],['Unit type',s.type],['Source',s.source]])if(value)block.appendChild(textRow(label,value));body.appendChild(block)}}else{body.appendChild(textRow('Directly connected nodes',String(connections(n.id).length)));const desc=document.createElement('p');desc.textContent='Select any connected node to follow this relationship.';body.appendChild(desc)}
-const h=$('history');h.replaceChildren();for(const id of state.journey.slice(-7)){const node=state.nodes.find(n=>n.id===id);if(!node)continue;const b=document.createElement('button');b.textContent=nodeName(node);b.addEventListener('click',()=>focusNode(id));h.appendChild(b)};
-}
-async function load(){const old=state.focus;$('status').textContent='Refreshing live Google Sheet…';$('status').classList.remove('error');try{const response=await fetch('/api/graph',{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);state.nodes=data.nodes;state.edges=data.edges;state.details=data.details;state.journey=[];listChoices();const first=state.nodes.find(n=>n.id===old)||state.nodes.find(n=>n.id==='Unit:CRA128')||state.nodes[0];if(first)focusNode(first.id);$('status').textContent=`Live · refreshed ${new Date(data.updatedAt).toLocaleTimeString()}`;}catch(error){$('status').textContent='Connection unavailable';$('status').classList.add('error');$('graphnote').textContent=error.message;$('graph').replaceChildren(el('text',{x:400,y:290,'text-anchor':'middle'},'Google Sheets connection not yet configured'));}}
-$('category').addEventListener('change',listChoices);$('search').addEventListener('input',listChoices);$('choice').addEventListener('change',e=>focusNode(e.target.value));$('back').addEventListener('click',()=>{if(state.journey.length>1){state.journey.pop();focusNode(state.journey[state.journey.length-1],false)}});$('reset').addEventListener('click',()=>{state.journey=[];focusNode('Unit:CRA128')});$('showSecond').addEventListener('change',e=>{state.second=e.target.checked;renderGraph()});$('refresh').addEventListener('click',load);load();
